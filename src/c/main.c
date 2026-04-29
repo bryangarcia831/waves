@@ -60,11 +60,33 @@ static void tick_handler(struct tm *tick_time, TimeUnits changed) {
 }
 
 // ── Layer stubs (implemented in later tasks) ──────────────────────────────────
-static void top_bar_update(Layer *layer, GContext *ctx)    {}
+static void top_bar_update(Layer *layer, GContext *ctx) {
+  GRect b = layer_get_bounds(layer);
+  GFont sm = fonts_get_system_font(FONT_KEY_GOTHIC_09);
+
+  graphics_context_set_fill_color(ctx, COLOR_NAVY);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+
+  graphics_context_set_text_color(ctx, COLOR_LABEL);
+  graphics_draw_text(ctx, "< Light", sm,
+    GRect(4, 1, 50, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+  graphics_draw_text(ctx, "10 Year Battery", sm,
+    GRect(0, 1, b.size.w - 4, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
+}
 static void day_date_update(Layer *layer, GContext *ctx)   {}
 static void tide_moon_update(Layer *layer, GContext *ctx)  {}
 static void time_update(Layer *layer, GContext *ctx)       {}
-static void bottom_bar_update(Layer *layer, GContext *ctx) {}
+static void bottom_bar_update(Layer *layer, GContext *ctx) {
+  GRect b = layer_get_bounds(layer);
+  GFont sm = fonts_get_system_font(FONT_KEY_GOTHIC_09);
+
+  graphics_context_set_fill_color(ctx, COLOR_NAVY);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+
+  graphics_context_set_text_color(ctx, COLOR_LABEL);
+  graphics_draw_text(ctx, "Illuminator", sm,
+    GRect(0, 1, b.size.w, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+}
 static void chamfer_update(Layer *layer, GContext *ctx)    {}
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
