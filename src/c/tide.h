@@ -6,8 +6,8 @@
 #define KNOWN_NEW_MOON_TS     947182440
 
 typedef struct {
-  float heights[TIDE_SAMPLES];
-  int   current_idx;
+  float heights[TIDE_SAMPLES];  // -1.0 (low) to +1.0 (high)
+  int   current_idx;            // always TIDE_SAMPLES/2
 } TideData;
 
 TideData tide_calculate(time_t now);
