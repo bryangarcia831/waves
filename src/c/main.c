@@ -73,7 +73,34 @@ static void top_bar_update(Layer *layer, GContext *ctx) {
   graphics_draw_text(ctx, "10 Year Battery", sm,
     GRect(0, 1, b.size.w - 4, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
 }
-static void day_date_update(Layer *layer, GContext *ctx)   {}
+static void day_date_update(Layer *layer, GContext *ctx) {
+  GRect b = layer_get_bounds(layer);
+
+  graphics_context_set_fill_color(ctx, COLOR_LCD_BG);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+
+  // Bottom divider
+  graphics_context_set_stroke_color(ctx, COLOR_NAVY);
+  graphics_context_set_stroke_width(ctx, 2);
+  graphics_draw_line(ctx, GPoint(0, b.size.h-1), GPoint(b.size.w, b.size.h-1));
+
+  // Ghost segments
+  graphics_context_set_text_color(ctx, COLOR_GHOST);
+  graphics_draw_text(ctx, "888", s_font_dseg14_24,
+    GRect(6, 2, 90, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+  graphics_draw_text(ctx, "8-88", s_font_dseg14_24,
+    GRect(0, 2, b.size.w-6, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
+
+  // Live text
+  graphics_context_set_text_color(ctx, COLOR_DIGIT);
+  graphics_draw_text(ctx, DAY_NAMES[s_now.tm_wday], s_font_dseg14_24,
+    GRect(6, 2, 90, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+
+  char date_buf[8];
+  snprintf(date_buf, sizeof(date_buf), "%d-%02d", s_now.tm_mon+1, s_now.tm_mday);
+  graphics_draw_text(ctx, date_buf, s_font_dseg14_24,
+    GRect(0, 2, b.size.w-6, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
+}
 static void tide_moon_update(Layer *layer, GContext *ctx)  {}
 static void time_update(Layer *layer, GContext *ctx)       {}
 static void bottom_bar_update(Layer *layer, GContext *ctx) {
