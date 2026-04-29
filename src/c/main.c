@@ -117,7 +117,55 @@ static void tide_moon_update(Layer *layer, GContext *ctx) {
   tide_draw(ctx, GRect(4, 4, tide_w, b.size.h - 8), s_tide);
   moon_draw(ctx, GRect(b.size.w - moon_w, 2, moon_w, b.size.h - 4), s_moon);
 }
-static void time_update(Layer *layer, GContext *ctx)       {}
+static void time_update(Layer *layer, GContext *ctx) {
+  GRect b = layer_get_bounds(layer);
+
+  graphics_context_set_fill_color(ctx, COLOR_LCD_BG);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+
+  // Top divider
+  graphics_context_set_stroke_color(ctx, COLOR_NAVY);
+  graphics_context_set_stroke_width(ctx, 2);
+  graphics_draw_line(ctx, GPoint(0, 0), GPoint(b.size.w, 0));
+
+  int hour12 = s_now.tm_hour % 12;
+  if (hour12 == 0) hour12 = 12;
+
+  char time_buf[6];
+  snprintf(time_buf, sizeof(time_buf), "%02d:%02d", hour12, s_now.tm_min);
+
+  // Ghost
+  graphics_context_set_text_color(ctx, COLOR_GHOST);
+  graphics_draw_text(ctx, "88:88", s_font_dseg7_46,
+    GRect(18, 14, b.size.w - 18, b.size.h),
+    GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+
+  // Live time
+  graphics_context_set_text_color(ctx, COLOR_DIGIT);
+  graphics_draw_text(ctx, time_buf, s_font_dseg7_46,
+    GRect(18, 14, b.size.w - 18, b.size.h),
+    GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+
+  // AM/PM indicator
+  graphics_context_set_text_color(ctx, GColorLightGray);
+  graphics_draw_text(ctx, s_now.tm_hour >= 12 ? "P" : "A", s_font_dseg7_18,
+    GRect(2, b.size.h/2 - 10, 16, 20),
+    GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+
+  // Seconds (when enabled)
+  if (s_show_seconds) {
+    char sec_buf[3];
+    snprintf(sec_buf, sizeof(sec_buf), "%02d", s_now.tm_sec);
+    graphics_context_set_text_color(ctx, COLOR_GHOST);
+    graphics_draw_text(ctx, "88", s_font_dseg7_18,
+      GRect(b.size.w - 28, 18, 26, b.size.h),
+      GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+    graphics_context_set_text_color(ctx, COLOR_DIGIT);
+    graphics_draw_text(ctx, sec_buf, s_font_dseg7_18,
+      GRect(b.size.w - 28, 18, 26, b.size.h),
+      GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+  }
+}
 static void bottom_bar_update(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
   GFont sm = fonts_get_system_font(FONT_KEY_GOTHIC_09);
