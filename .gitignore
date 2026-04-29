@@ -1,0 +1,6 @@
+build/
+.pebble-linked-resources
+*.pbw
+*.pyc
+node_modules/
+.superpowers/

@@ -1,0 +1,41 @@
+{
+  "name": "casio-waves",
+  "author": "casio-waves",
+  "version": "1.0.0",
+  "keywords": ["pebble-app"],
+  "pebble": {
+    "sdkVersion": "4",
+    "displayName": "Casio Waves",
+    "uuid": "6DE6CF3A-57CD-47BD-B40D-229E8A481D99",
+    "targetPlatforms": ["emery"],
+    "watchapp": { "watchface": true },
+    "capabilities": [],
+    "messageKeys": ["SHOW_SECONDS"],
+    "dependencies": { "pebble-clay": "*" },
+    "resources": {
+      "media": [
+        {
+          "type": "font",
+          "name": "FONT_DSEG7_46",
+          "file": "fonts/DSEG7Classic-Regular.ttf",
+          "characterRegex": "[0-9:AMP ]",
+          "compatibility": "2.7"
+        },
+        {
+          "type": "font",
+          "name": "FONT_DSEG7_18",
+          "file": "fonts/DSEG7Classic-Regular.ttf",
+          "characterRegex": "[0-9:AMP ]",
+          "compatibility": "2.7"
+        },
+        {
+          "type": "font",
+          "name": "FONT_DSEG14_24",
+          "file": "fonts/DSEG14Classic-Regular.ttf",
+          "characterRegex": "[A-Z0-9/ \\-]",
+          "compatibility": "2.7"
+        }
+      ]
+    }
+  }
+}
