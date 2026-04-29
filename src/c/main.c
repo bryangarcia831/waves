@@ -51,7 +51,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits changed) {
   layer_mark_dirty(s_time_layer);
 
   if (changed & DAY_UNIT)   layer_mark_dirty(s_day_date_layer);
-  if (tick_time->tm_min % 15 == 0 || (changed & HOUR_UNIT)) {
+  if (tick_time->tm_min % 15 == 0) {
     time_t now = time(NULL);
     s_tide = tide_calculate(now);
     s_moon = moon_calculate_phase(now);
@@ -133,8 +133,8 @@ static void init(void) {
   time_t now = time(NULL);
   localtime_r(&now, &s_now);
 
-  app_message_open(64, 64);
   app_message_register_inbox_received(inbox_received);
+  app_message_open(64, 64);
 
   s_window = window_create();
   window_set_background_color(s_window, GColorBlack);
