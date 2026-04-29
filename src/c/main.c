@@ -101,7 +101,22 @@ static void day_date_update(Layer *layer, GContext *ctx) {
   graphics_draw_text(ctx, date_buf, s_font_dseg14_24,
     GRect(0, 2, b.size.w-6, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
 }
-static void tide_moon_update(Layer *layer, GContext *ctx)  {}
+static void tide_moon_update(Layer *layer, GContext *ctx) {
+  GRect b = layer_get_bounds(layer);
+
+  graphics_context_set_fill_color(ctx, COLOR_LCD_BG);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+
+  graphics_context_set_stroke_color(ctx, COLOR_NAVY);
+  graphics_context_set_stroke_width(ctx, 2);
+  graphics_draw_line(ctx, GPoint(0, b.size.h-1), GPoint(b.size.w, b.size.h-1));
+
+  int moon_w = 52;
+  int tide_w = b.size.w - moon_w - 6;
+
+  tide_draw(ctx, GRect(4, 4, tide_w, b.size.h - 8), s_tide);
+  moon_draw(ctx, GRect(b.size.w - moon_w, 2, moon_w, b.size.h - 4), s_moon);
+}
 static void time_update(Layer *layer, GContext *ctx)       {}
 static void bottom_bar_update(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
