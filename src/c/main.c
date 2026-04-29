@@ -12,15 +12,35 @@
 #define BOTTOM_BAR_H   14
 #define CHAMFER_SIZE   12
 
-// ── Colors ───────────────────────────────────────────────────────────────────
-#define COLOR_LCD_BG   GColorMediumAquamarine
-#define COLOR_NAVY     GColorOxfordBlue
-#define COLOR_DIGIT    GColorBlack
-#define COLOR_GHOST    GColorCeleste
-#define COLOR_LABEL    GColorPictonBlue
+// ── Runtime colors (set by dark mode toggle) ──────────────────────────────────
+static GColor g_lcd_bg;
+static GColor g_navy;
+static GColor g_digit;
+static GColor g_ghost;
+static GColor g_label;
+
+static bool s_dark_mode = false;
+
+static void apply_color_scheme(void) {
+  if (s_dark_mode) {
+    g_lcd_bg = GColorBlack;
+    g_navy   = GColorWhite;
+    g_digit  = GColorWhite;
+    g_ghost  = GColorDarkGray;
+    g_label  = GColorPictonBlue;
+  } else {
+    g_lcd_bg = GColorMediumAquamarine;
+    g_navy   = GColorOxfordBlue;
+    g_digit  = GColorBlack;
+    g_ghost  = GColorCeleste;
+    g_label  = GColorPictonBlue;
+  }
+}
 
 // ── Persist keys ─────────────────────────────────────────────────────────────
 #define KEY_SHOW_SECONDS 0
+#define KEY_USE_24H      1
+#define KEY_DARK_MODE    2
 
 // ── State ────────────────────────────────────────────────────────────────────
 static Window  *s_window;
@@ -34,11 +54,13 @@ static Layer   *s_chamfer_layer;
 static GFont    s_font_dseg7_46;
 static GFont    s_font_dseg7_18;
 static GFont    s_font_dseg14_24;
+static GFont    s_font_illum_11;
 
 static struct tm s_now;
 static TideData  s_tide;
 static MoonPhase s_moon;
 static bool      s_show_seconds = false;
+static bool      s_use_24h      = false;
 
 static const char *DAY_NAMES[] = {"SUN","MON","TUE","WED","THU","FRI","SAT"};
 
@@ -61,123 +83,159 @@ static void tick_handler(struct tm *tick_time, TimeUnits changed) {
 
 // ── Layer stubs (implemented in later tasks) ──────────────────────────────────
 static void top_bar_update(Layer *layer, GContext *ctx) {
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "top_bar_update");
   GRect b = layer_get_bounds(layer);
   GFont sm = fonts_get_system_font(FONT_KEY_GOTHIC_09);
 
-  graphics_context_set_fill_color(ctx, COLOR_NAVY);
+  graphics_context_set_fill_color(ctx, g_navy);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
-  graphics_context_set_text_color(ctx, COLOR_LABEL);
+  graphics_context_set_text_color(ctx, g_label);
   graphics_draw_text(ctx, "< Light", sm,
-    GRect(4, 1, 50, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
-  graphics_draw_text(ctx, "10 Year Battery", sm,
-    GRect(0, 1, b.size.w - 4, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
+    GRect(14, 3, 80, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+  graphics_draw_text(ctx, "Adjust >", sm,
+    GRect(0, 3, b.size.w - 6, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
 }
 static void day_date_update(Layer *layer, GContext *ctx) {
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "day_date_update");
   GRect b = layer_get_bounds(layer);
 
-  graphics_context_set_fill_color(ctx, COLOR_LCD_BG);
+  graphics_context_set_fill_color(ctx, g_lcd_bg);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
-  // Bottom divider
-  graphics_context_set_stroke_color(ctx, COLOR_NAVY);
-  graphics_context_set_stroke_width(ctx, 2);
-  graphics_draw_line(ctx, GPoint(0, b.size.h-1), GPoint(b.size.w, b.size.h-1));
+  // 4px bottom divider — occupies last 4 rows, leaving 32px usable above
+  graphics_context_set_fill_color(ctx, g_navy);
+  graphics_fill_rect(ctx, GRect(0, b.size.h - 4, b.size.w, 4), 0, GCornerNone);
 
-  // Ghost segments
-  graphics_context_set_text_color(ctx, COLOR_GHOST);
+  // Content centered in usable 32px: DSEG14_24 is ~24px → y=4 centres it (4 top, 4 bottom)
+  int content_h = b.size.h - 4;  // 32px
+  int ty = (content_h - 24) / 2; // 4
+
+  graphics_context_set_text_color(ctx, g_ghost);
   graphics_draw_text(ctx, "888", s_font_dseg14_24,
-    GRect(6, 2, 90, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+    GRect(10, ty, 96, content_h - ty), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
   graphics_draw_text(ctx, "8-88", s_font_dseg14_24,
-    GRect(0, 2, b.size.w-6, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
+    GRect(0, ty, b.size.w - 10, content_h - ty), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
 
-  // Live text
-  graphics_context_set_text_color(ctx, COLOR_DIGIT);
+  graphics_context_set_text_color(ctx, g_digit);
   graphics_draw_text(ctx, DAY_NAMES[s_now.tm_wday], s_font_dseg14_24,
-    GRect(6, 2, 90, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+    GRect(10, ty, 96, content_h - ty), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
 
   char date_buf[8];
   snprintf(date_buf, sizeof(date_buf), "%d-%02d", s_now.tm_mon+1, s_now.tm_mday);
   graphics_draw_text(ctx, date_buf, s_font_dseg14_24,
-    GRect(0, 2, b.size.w-6, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
+    GRect(0, ty, b.size.w - 10, content_h - ty), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
 }
 static void tide_moon_update(Layer *layer, GContext *ctx) {
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "tide_moon_update");
   GRect b = layer_get_bounds(layer);
 
-  graphics_context_set_fill_color(ctx, COLOR_LCD_BG);
+  graphics_context_set_fill_color(ctx, g_lcd_bg);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
-  graphics_context_set_stroke_color(ctx, COLOR_NAVY);
-  graphics_context_set_stroke_width(ctx, 2);
-  graphics_draw_line(ctx, GPoint(0, b.size.h-1), GPoint(b.size.w, b.size.h-1));
+  // 4px bottom divider — matches day_date divider weight
+  graphics_context_set_fill_color(ctx, g_navy);
+  graphics_fill_rect(ctx, GRect(0, b.size.h - 4, b.size.w, 4), 0, GCornerNone);
 
-  int moon_w = 52;
-  int tide_w = b.size.w - moon_w - 6;
+  // Usable height = b.size.h - 4 = 56px
+  // Equal padding: left | tide | gap | moon | right, all gaps = 8px
+  int gap    = 8;
+  int moon_w = 56;
+  int tide_w = b.size.w - moon_w - 3 * gap;  // 200 - 56 - 24 = 120
+  int usable = b.size.h - 4;                  // 56px above divider
 
-  tide_draw(ctx, GRect(4, 4, tide_w, b.size.h - 8), s_tide);
-  moon_draw(ctx, GRect(b.size.w - moon_w, 2, moon_w, b.size.h - 4), s_moon);
+  tide_draw(ctx, GRect(gap, 6, tide_w, usable - 12), s_tide, s_dark_mode);
+  moon_draw(ctx, GRect(gap + tide_w + gap, 4, moon_w, usable - 8), s_moon, s_dark_mode);
 }
 static void time_update(Layer *layer, GContext *ctx) {
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "time_update");
   GRect b = layer_get_bounds(layer);
 
-  graphics_context_set_fill_color(ctx, COLOR_LCD_BG);
+  graphics_context_set_fill_color(ctx, g_lcd_bg);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
-  // Top divider
-  graphics_context_set_stroke_color(ctx, COLOR_NAVY);
-  graphics_context_set_stroke_width(ctx, 2);
-  graphics_draw_line(ctx, GPoint(0, 0), GPoint(b.size.w, 0));
+  char time_buf[8];
+  if (s_use_24h) {
+    snprintf(time_buf, sizeof(time_buf), "%02d:%02d", s_now.tm_hour, s_now.tm_min);
+  } else {
+    int hour12 = s_now.tm_hour % 12;
+    if (hour12 == 0) hour12 = 12;
+    snprintf(time_buf, sizeof(time_buf), "%02d:%02d", hour12, s_now.tm_min);
+  }
 
-  int hour12 = s_now.tm_hour % 12;
-  if (hour12 == 0) hour12 = 12;
+  // Reserve right edge for AM/PM indicator block (~30px)
+  int ap_w    = s_use_24h ? 0 : 18;
+  int digit_w = b.size.w - ap_w;
 
-  char time_buf[6];
-  snprintf(time_buf, sizeof(time_buf), "%02d:%02d", hour12, s_now.tm_min);
+  // Vertically center 48px digits
+  int ty = (b.size.h - 48) / 2;
+  if (ty < 4) ty = 4;
 
-  // Ghost
-  graphics_context_set_text_color(ctx, COLOR_GHOST);
+  // Ghost segments — centered in the digit area
+  graphics_context_set_text_color(ctx, g_ghost);
   graphics_draw_text(ctx, "88:88", s_font_dseg7_46,
-    GRect(18, 14, b.size.w - 18, b.size.h),
-    GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    GRect(0, ty, digit_w, 48),
+    GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
 
-  // Live time
-  graphics_context_set_text_color(ctx, COLOR_DIGIT);
+  // Live time — centered in the same area
+  graphics_context_set_text_color(ctx, g_digit);
   graphics_draw_text(ctx, time_buf, s_font_dseg7_46,
-    GRect(18, 14, b.size.w - 18, b.size.h),
-    GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+    GRect(0, ty, digit_w, 48),
+    GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
 
-  // AM/PM indicator
-  graphics_context_set_text_color(ctx, GColorLightGray);
-  graphics_draw_text(ctx, s_now.tm_hour >= 12 ? "P" : "A", s_font_dseg7_18,
-    GRect(2, b.size.h/2 - 10, 16, 20),
-    GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+  // Stacked A / P on the right — only in 12h mode
+  if (!s_use_24h) {
+    bool is_pm  = s_now.tm_hour >= 12;
+    int ap_x    = b.size.w - ap_w;
+    int ap_top  = ty + 1;
 
-  // Seconds (when enabled)
+    graphics_context_set_text_color(ctx, g_ghost);
+    graphics_draw_text(ctx, "A", s_font_dseg7_18,
+      GRect(ap_x, ap_top, ap_w, 22),
+      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    graphics_draw_text(ctx, "P", s_font_dseg7_18,
+      GRect(ap_x, ap_top + 24, ap_w, 22),
+      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+
+    graphics_context_set_text_color(ctx, g_digit);
+    graphics_draw_text(ctx, is_pm ? "P" : "A", s_font_dseg7_18,
+      GRect(ap_x, is_pm ? ap_top + 24 : ap_top, ap_w, 22),
+      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+  }
+
+  // Seconds (when enabled) — below digits, left side
   if (s_show_seconds) {
     char sec_buf[3];
     snprintf(sec_buf, sizeof(sec_buf), "%02d", s_now.tm_sec);
-    graphics_context_set_text_color(ctx, COLOR_GHOST);
+    graphics_context_set_text_color(ctx, g_ghost);
     graphics_draw_text(ctx, "88", s_font_dseg7_18,
-      GRect(b.size.w - 28, 18, 26, b.size.h),
-      GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
-    graphics_context_set_text_color(ctx, COLOR_DIGIT);
+      GRect(6, ty + 64, 30, 22),
+      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    graphics_context_set_text_color(ctx, g_digit);
     graphics_draw_text(ctx, sec_buf, s_font_dseg7_18,
-      GRect(b.size.w - 28, 18, 26, b.size.h),
-      GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+      GRect(6, ty + 64, 30, 22),
+      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
   }
 }
 static void bottom_bar_update(Layer *layer, GContext *ctx) {
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "bottom_bar_update");
   GRect b = layer_get_bounds(layer);
-  GFont sm = fonts_get_system_font(FONT_KEY_GOTHIC_09);
 
-  graphics_context_set_fill_color(ctx, COLOR_NAVY);
+  graphics_context_set_fill_color(ctx, g_navy);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
-  graphics_context_set_text_color(ctx, COLOR_LABEL);
-  graphics_draw_text(ctx, "Illuminator", sm,
-    GRect(0, 1, b.size.w, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+  GFont sm = fonts_get_system_font(FONT_KEY_GOTHIC_09);
+
+  graphics_context_set_text_color(ctx, g_label);
+  // Italic font, y=2 centres the 11px cap-height in the 14px bar
+  graphics_draw_text(ctx, "Illuminator", s_font_illum_11,
+    GRect(0, 2, b.size.w, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+  // "Mode >" right side — clear of chamfer corner
+  graphics_draw_text(ctx, "Mode >", sm,
+    GRect(0, 3, b.size.w - 16, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
 }
 static void chamfer_update(Layer *layer, GContext *ctx) {
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "chamfer_update");
   GRect b = layer_get_bounds(layer);
   int W = b.size.w, H = b.size.h, C = CHAMFER_SIZE;
   graphics_context_set_fill_color(ctx, GColorBlack);
@@ -198,15 +256,25 @@ static void chamfer_update(Layer *layer, GContext *ctx) {
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 static void window_load(Window *window) {
-  s_font_dseg7_46  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DSEG7_46));
-  s_font_dseg7_18  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DSEG7_18));
-  s_font_dseg14_24 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DSEG14_24));
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "window_load start");
+  s_font_dseg7_46  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TIME_48));
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "font 46 loaded: %p", s_font_dseg7_46);
+  s_font_dseg7_18  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SEC_18));
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "font 18 loaded: %p", s_font_dseg7_18);
+  s_font_dseg14_24 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DATE_24));
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "font 24 loaded: %p", s_font_dseg14_24);
+  s_font_illum_11  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_ILLUM_11));
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "illum font loaded: %p", s_font_illum_11);
+
+  apply_color_scheme();
 
   Layer *root = window_get_root_layer(window);
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "got root layer");
   int y = 0;
 
 #define MAKE_LAYER(var, h, proc) \
   var = layer_create(GRect(0, y, SCREEN_W, h)); \
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "created " #var); \
   layer_set_update_proc(var, proc); \
   layer_add_child(root, var); \
   y += h;
@@ -217,14 +285,22 @@ static void window_load(Window *window) {
   MAKE_LAYER(s_time_layer,       TIME_H,       time_update)
   MAKE_LAYER(s_bottom_bar_layer, BOTTOM_BAR_H, bottom_bar_update)
 #undef MAKE_LAYER
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "all main layers created");
 
   s_chamfer_layer = layer_create(GRect(0, 0, SCREEN_W, SCREEN_H));
   layer_set_update_proc(s_chamfer_layer, chamfer_update);
   layer_add_child(root, s_chamfer_layer);
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "chamfer layer done");
 
   time_t now = time(NULL);
   s_tide = tide_calculate(now);
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "tide calculated");
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "about to call moon_calculate_phase");
   s_moon = moon_calculate_phase(now);
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "moon calculated, phase_day=%d", s_moon.phase_day);
+
+  update_tick_subscription();
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "tick subscribed, load done");
 }
 
 static void window_unload(Window *window) {
@@ -237,6 +313,7 @@ static void window_unload(Window *window) {
   fonts_unload_custom_font(s_font_dseg7_46);
   fonts_unload_custom_font(s_font_dseg7_18);
   fonts_unload_custom_font(s_font_dseg14_24);
+  fonts_unload_custom_font(s_font_illum_11);
 }
 
 static void update_tick_subscription(void) {
@@ -245,21 +322,53 @@ static void update_tick_subscription(void) {
 }
 
 static void inbox_received(DictionaryIterator *iter, void *ctx) {
+  bool dirty_time = false, dirty_all = false;
+
   Tuple *t = dict_find(iter, MESSAGE_KEY_SHOW_SECONDS);
   if (t) {
     s_show_seconds = t->value->int32 != 0;
     persist_write_bool(KEY_SHOW_SECONDS, s_show_seconds);
     update_tick_subscription();
+    dirty_time = true;
+  }
+
+  t = dict_find(iter, MESSAGE_KEY_USE_24H);
+  if (t) {
+    s_use_24h = t->value->int32 != 0;
+    persist_write_bool(KEY_USE_24H, s_use_24h);
+    dirty_time = true;
+  }
+
+  t = dict_find(iter, MESSAGE_KEY_DARK_MODE);
+  if (t) {
+    s_dark_mode = t->value->int32 != 0;
+    persist_write_bool(KEY_DARK_MODE, s_dark_mode);
+    apply_color_scheme();
+    dirty_all = true;
+  }
+
+  if (dirty_all) {
+    layer_mark_dirty(s_top_bar_layer);
+    layer_mark_dirty(s_day_date_layer);
+    layer_mark_dirty(s_tide_moon_layer);
+    layer_mark_dirty(s_time_layer);
+    layer_mark_dirty(s_bottom_bar_layer);
+  } else if (dirty_time) {
     layer_mark_dirty(s_time_layer);
   }
 }
 
 static void init(void) {
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "init start");
   s_show_seconds = persist_exists(KEY_SHOW_SECONDS)
     ? persist_read_bool(KEY_SHOW_SECONDS) : false;
+  s_use_24h = persist_exists(KEY_USE_24H)
+    ? persist_read_bool(KEY_USE_24H) : false;
+  s_dark_mode = persist_exists(KEY_DARK_MODE)
+    ? persist_read_bool(KEY_DARK_MODE) : false;
 
   time_t now = time(NULL);
-  localtime_r(&now, &s_now);
+  struct tm *t = localtime(&now); if (t) s_now = *t;
 
   app_message_register_inbox_received(inbox_received);
   app_message_open(64, 64);
@@ -270,8 +379,9 @@ static void init(void) {
     .load   = window_load,
     .unload = window_unload,
   });
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "pushing window");
   window_stack_push(s_window, true);
-  update_tick_subscription();
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "init done");
 }
 
 static void deinit(void) {

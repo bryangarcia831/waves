@@ -11,4 +11,4 @@ typedef struct {
 } MoonPhase;
 
 MoonPhase moon_calculate_phase(time_t now);
-void      moon_draw(GContext *ctx, GRect frame, MoonPhase phase);
+void      moon_draw(GContext *ctx, GRect frame, MoonPhase phase, bool dark_mode);

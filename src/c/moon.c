@@ -1,28 +1,30 @@
 #include "moon.h"
-#include <math.h>
 
 MoonPhase moon_calculate_phase(time_t now) {
+  MoonPhase result;
   double days  = (double)(now - KNOWN_NEW_MOON_TS) / 86400.0;
   double phase = days / LUNAR_CYCLE_DAYS;
   phase        = phase - (long)phase;
   if (phase < 0) phase += 1.0;
-  float illum  = (float)((1.0 - cos(2.0 * M_PI * phase)) / 2.0);
-  return (MoonPhase){
-    .illumination = illum,
-    .phase_day    = (int)(phase * LUNAR_CYCLE_DAYS),
-    .waxing       = phase < 0.5,
-  };
+  // cos(2π * phase) using Pebble's cos_lookup
+  double c = (double)cos_lookup((int32_t)(phase * TRIG_MAX_ANGLE)) / TRIG_MAX_RATIO;
+  result.illumination = (float)((1.0 - c) / 2.0);
+  result.phase_day = (int)(phase * LUNAR_CYCLE_DAYS + 0.5);
+  result.waxing = phase < 0.5;
+  return result;
 }
 
-void moon_draw(GContext *ctx, GRect frame, MoonPhase phase) {
+void moon_draw(GContext *ctx, GRect frame, MoonPhase phase, bool dark_mode) {
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "moon_draw start");
   GPoint center = GPoint(
     frame.origin.x + frame.size.w / 2,
     frame.origin.y + frame.size.h / 2
   );
   int r = (frame.size.h < frame.size.w ? frame.size.h : frame.size.w) / 2 - 2;
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "r=%d", r);
 
   // 1. Dark base
-  graphics_context_set_fill_color(ctx, GColorMidnightGreen);
+  graphics_context_set_fill_color(ctx, dark_mode ? GColorDarkGray : GColorMidnightGreen);
   graphics_fill_circle(ctx, center, r);
 
   // 2. Lit portion — vertical scanlines within circle
@@ -36,15 +38,20 @@ void moon_draw(GContext *ctx, GRect frame, MoonPhase phase) {
   int x_start = phase.waxing ? terminator_x    : center.x - r;
   int x_end   = phase.waxing ? center.x + r    : terminator_x;
 
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "scanline loop start");
   for (int x = x_start; x <= x_end; x++) {
     int dx = x - center.x;
     if (dx * dx > r * r) continue;
-    int dy = (int)sqrt((float)(r * r - dx * dx));
+    // Integer sqrt to avoid math.h crash
+    int s = r * r - dx * dx, dy = 0;
+    while ((dy + 1) * (dy + 1) <= s) dy++;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "draw_line in scanloop");
     graphics_draw_line(ctx, GPoint(x, center.y - dy), GPoint(x, center.y + dy));
   }
 
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "meridian loop start");
   // 3. Meridian lines (globe effect) — ellipses of varying rx
-  graphics_context_set_stroke_color(ctx, GColorMidnightGreen);
+  graphics_context_set_stroke_color(ctx, dark_mode ? GColorDarkGray : GColorMidnightGreen);
   graphics_context_set_stroke_width(ctx, 1);
   int rx_vals[] = { r/4, r/2, (r*3)/4 };
   for (int e = 0; e < 3; e++) {
@@ -69,11 +76,13 @@ void moon_draw(GContext *ctx, GRect frame, MoonPhase phase) {
     }
   }
 
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "center line");
   // 4. Center vertical line
   graphics_draw_line(ctx, GPoint(center.x, center.y - r), GPoint(center.x, center.y + r));
 
-  // 5. Blue outer ring
-  graphics_context_set_stroke_color(ctx, GColorCobaltBlue);
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "outer ring");
+  // 5. Blue outer ring — lighter in dark mode
+  graphics_context_set_stroke_color(ctx, dark_mode ? GColorCeleste : GColorCobaltBlue);
   graphics_context_set_stroke_width(ctx, 2);
   graphics_draw_circle(ctx, center, r);
   graphics_context_set_stroke_width(ctx, 1);

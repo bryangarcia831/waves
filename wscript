@@ -27,7 +27,6 @@ def build(ctx):
             source=ctx.path.ant_glob('src/c/**/*.c'),
             target=app_elf,
             bin_type='app',
-            lib=['m'],
         )
 
         if build_worker:
