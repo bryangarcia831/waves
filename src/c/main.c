@@ -240,9 +240,8 @@ static void window_unload(Window *window) {
 }
 
 static void update_tick_subscription(void) {
-  TimeUnits units = s_show_seconds ? (SECOND_UNIT | MINUTE_UNIT | DAY_UNIT)
-                                   : (MINUTE_UNIT | DAY_UNIT);
-  tick_timer_service_subscribe(units, tick_handler);
+  TimeUnits unit = s_show_seconds ? SECOND_UNIT : MINUTE_UNIT;
+  tick_timer_service_subscribe(unit, tick_handler);
 }
 
 static void inbox_received(DictionaryIterator *iter, void *ctx) {
