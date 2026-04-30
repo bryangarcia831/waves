@@ -5,7 +5,7 @@
 // ── Dimensions ───────────────────────────────────────────────────────────────
 #define SCREEN_W      200
 #define SCREEN_H      228
-#define TOP_BAR_H      14
+#define TOP_BAR_H      15
 #define DAY_DATE_H     36
 #define TIDE_MOON_H    60
 #define TIME_H        104
@@ -24,9 +24,9 @@ static bool s_dark_mode = false;
 static void apply_color_scheme(void) {
   if (s_dark_mode) {
     g_lcd_bg = GColorBlack;
-    g_navy   = GColorWhite;
+    g_navy   = GColorOxfordBlue;
     g_digit  = GColorWhite;
-    g_ghost  = GColorDarkGray;
+    g_ghost  = GColorBlack;
     g_label  = GColorPictonBlue;
   } else {
     g_lcd_bg = GColorMediumAquamarine;
@@ -52,6 +52,7 @@ static Layer   *s_bottom_bar_layer;
 static Layer   *s_chamfer_layer;
 
 static GFont    s_font_dseg7_46;
+static GFont    s_font_dseg7_32;
 static GFont    s_font_dseg7_18;
 static GFont    s_font_dseg14_24;
 static GFont    s_font_illum_11;
@@ -91,10 +92,11 @@ static void top_bar_update(Layer *layer, GContext *ctx) {
   graphics_fill_rect(ctx, b, 0, GCornerNone);
 
   graphics_context_set_text_color(ctx, g_label);
+  int label_y = (b.size.h - 9) / 2;
   graphics_draw_text(ctx, "< Light", sm,
-    GRect(14, 3, 80, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+    GRect(14, label_y, 80, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
   graphics_draw_text(ctx, "Adjust >", sm,
-    GRect(0, 3, b.size.w - 6, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
+    GRect(0, label_y, b.size.w - 6, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
 }
 static void day_date_update(Layer *layer, GContext *ctx) {
   APP_LOG(APP_LOG_LEVEL_DEBUG, "day_date_update");
@@ -163,58 +165,80 @@ static void time_update(Layer *layer, GContext *ctx) {
     snprintf(time_buf, sizeof(time_buf), "%02d:%02d", hour12, s_now.tm_min);
   }
 
-  // Reserve right edge for AM/PM indicator block (~30px)
-  int ap_w    = s_use_24h ? 0 : 18;
-  int digit_w = b.size.w - ap_w;
-
-  // Vertically center 48px digits
-  int ty = (b.size.h - 48) / 2;
-  if (ty < 4) ty = 4;
-
-  // Ghost segments — centered in the digit area
-  graphics_context_set_text_color(ctx, g_ghost);
-  graphics_draw_text(ctx, "88:88", s_font_dseg7_46,
-    GRect(0, ty, digit_w, 48),
-    GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
-
-  // Live time — centered in the same area
-  graphics_context_set_text_color(ctx, g_digit);
-  graphics_draw_text(ctx, time_buf, s_font_dseg7_46,
-    GRect(0, ty, digit_w, 48),
-    GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
-
-  // Stacked A / P on the right — only in 12h mode
-  if (!s_use_24h) {
-    bool is_pm  = s_now.tm_hour >= 12;
-    int ap_x    = b.size.w - ap_w;
-    int ap_top  = ty + 1;
-
-    graphics_context_set_text_color(ctx, g_ghost);
-    graphics_draw_text(ctx, "A", s_font_dseg7_18,
-      GRect(ap_x, ap_top, ap_w, 22),
-      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
-    graphics_draw_text(ctx, "P", s_font_dseg7_18,
-      GRect(ap_x, ap_top + 24, ap_w, 22),
-      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
-
-    graphics_context_set_text_color(ctx, g_digit);
-    graphics_draw_text(ctx, is_pm ? "P" : "A", s_font_dseg7_18,
-      GRect(ap_x, is_pm ? ap_top + 24 : ap_top, ap_w, 22),
-      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
-  }
-
-  // Seconds (when enabled) — below digits, left side
   if (s_show_seconds) {
     char sec_buf[3];
     snprintf(sec_buf, sizeof(sec_buf), "%02d", s_now.tm_sec);
+    
+    int ap_w = s_use_24h ? 0 : 22;
+    int digit_w = b.size.w - ap_w;
+    int ty = (b.size.h - 32) / 2;
+    if (ty < 4) ty = 4;
+
     graphics_context_set_text_color(ctx, g_ghost);
-    graphics_draw_text(ctx, "88", s_font_dseg7_18,
-      GRect(6, ty + 64, 30, 22),
-      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    graphics_draw_text(ctx, "88:88:88", s_font_dseg7_32,
+      GRect(0, ty, digit_w, 32),
+      GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+
+    char time_sec_buf[11];
+    snprintf(time_sec_buf, sizeof(time_sec_buf), "%s:%s", time_buf, sec_buf);
     graphics_context_set_text_color(ctx, g_digit);
-    graphics_draw_text(ctx, sec_buf, s_font_dseg7_18,
-      GRect(6, ty + 64, 30, 22),
-      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    graphics_draw_text(ctx, time_sec_buf, s_font_dseg7_32,
+      GRect(0, ty, digit_w, 32),
+      GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+
+    if (!s_use_24h) {
+      bool is_pm  = s_now.tm_hour >= 12;
+      int ap_x    = b.size.w - ap_w;
+      int ap_top  = ty - 6;
+
+      graphics_context_set_text_color(ctx, g_ghost);
+      graphics_draw_text(ctx, "A", s_font_dseg7_18,
+        GRect(ap_x, ap_top, ap_w, 22),
+        GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+      graphics_draw_text(ctx, "P", s_font_dseg7_18,
+        GRect(ap_x, ap_top + 24, ap_w, 22),
+        GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+
+      graphics_context_set_text_color(ctx, g_digit);
+      graphics_draw_text(ctx, is_pm ? "P" : "A", s_font_dseg7_18,
+        GRect(ap_x, is_pm ? ap_top + 24 : ap_top, ap_w, 22),
+        GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    }
+  } else {
+    int ap_w    = s_use_24h ? 0 : 18;
+    int digit_w = b.size.w - ap_w;
+
+    int ty = (b.size.h - 48) / 2;
+    if (ty < 4) ty = 4;
+
+    graphics_context_set_text_color(ctx, g_ghost);
+    graphics_draw_text(ctx, "88:88", s_font_dseg7_46,
+      GRect(0, ty, digit_w, 48),
+      GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+
+    graphics_context_set_text_color(ctx, g_digit);
+    graphics_draw_text(ctx, time_buf, s_font_dseg7_46,
+      GRect(0, ty, digit_w, 48),
+      GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+
+    if (!s_use_24h) {
+      bool is_pm  = s_now.tm_hour >= 12;
+      int ap_x    = b.size.w - ap_w;
+      int ap_top  = ty + 1;
+
+      graphics_context_set_text_color(ctx, g_ghost);
+      graphics_draw_text(ctx, "A", s_font_dseg7_18,
+        GRect(ap_x, ap_top, ap_w, 22),
+        GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+      graphics_draw_text(ctx, "P", s_font_dseg7_18,
+        GRect(ap_x, ap_top + 24, ap_w, 22),
+        GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+
+      graphics_context_set_text_color(ctx, g_digit);
+      graphics_draw_text(ctx, is_pm ? "P" : "A", s_font_dseg7_18,
+        GRect(ap_x, is_pm ? ap_top + 24 : ap_top, ap_w, 22),
+        GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+    }
   }
 }
 static void bottom_bar_update(Layer *layer, GContext *ctx) {
@@ -227,12 +251,12 @@ static void bottom_bar_update(Layer *layer, GContext *ctx) {
   GFont sm = fonts_get_system_font(FONT_KEY_GOTHIC_09);
 
   graphics_context_set_text_color(ctx, g_label);
-  // Italic font, y=2 centres the 11px cap-height in the 14px bar
+  int illum_y = (b.size.h - 11) / 2;
   graphics_draw_text(ctx, "Illuminator", s_font_illum_11,
-    GRect(0, 2, b.size.w, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-  // "Mode >" right side — clear of chamfer corner
+    GRect(0, illum_y, b.size.w, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+  int mode_y = (b.size.h - 9) / 2;
   graphics_draw_text(ctx, "Mode >", sm,
-    GRect(0, 3, b.size.w - 16, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
+    GRect(0, mode_y, b.size.w - 16, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
 }
 static void chamfer_update(Layer *layer, GContext *ctx) {
   APP_LOG(APP_LOG_LEVEL_DEBUG, "chamfer_update");
@@ -259,6 +283,8 @@ static void window_load(Window *window) {
   APP_LOG(APP_LOG_LEVEL_DEBUG, "window_load start");
   s_font_dseg7_46  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TIME_48));
   APP_LOG(APP_LOG_LEVEL_DEBUG, "font 46 loaded: %p", s_font_dseg7_46);
+  s_font_dseg7_32  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TIME_32));
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "font 32 loaded: %p", s_font_dseg7_32);
   s_font_dseg7_18  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SEC_18));
   APP_LOG(APP_LOG_LEVEL_DEBUG, "font 18 loaded: %p", s_font_dseg7_18);
   s_font_dseg14_24 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DATE_24));
@@ -311,6 +337,7 @@ static void window_unload(Window *window) {
   layer_destroy(s_bottom_bar_layer);
   layer_destroy(s_chamfer_layer);
   fonts_unload_custom_font(s_font_dseg7_46);
+  fonts_unload_custom_font(s_font_dseg7_32);
   fonts_unload_custom_font(s_font_dseg7_18);
   fonts_unload_custom_font(s_font_dseg14_24);
   fonts_unload_custom_font(s_font_illum_11);

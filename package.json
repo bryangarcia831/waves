@@ -36,6 +36,13 @@
         },
         {
           "type": "font",
+          "name": "FONT_TIME_32",
+          "file": "fonts/DSEG7Classic-Regular.ttf",
+          "characterRegex": "[0-9:AMP ]",
+          "compatibility": "2.7"
+        },
+        {
+          "type": "font",
           "name": "FONT_SEC_18",
           "file": "fonts/DSEG7Classic-Regular.ttf",
           "characterRegex": "[0-9:AMP ]",
