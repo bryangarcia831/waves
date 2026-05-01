@@ -75,7 +75,6 @@ void tide_draw(GContext *ctx, GRect frame, TideData data, bool dark_mode) {
   // height val [-1,1] → pixel y (top = high tide, bottom = low tide)
   #define H2Y(v) ((int)(oy + pad + (1.0f - (v)) * 0.5f * (h - pad*2)))
 
-  GColor grid_col = dark_mode ? GColorDarkGray : GColorLightGray;
   GColor label_col = dark_mode ? GColorLightGray : GColorDarkGray;
 
   // Y-axis labels: H / M / L (high, mid, low)
@@ -92,7 +91,7 @@ void tide_draw(GContext *ctx, GRect frame, TideData data, bool dark_mode) {
     GRect(ox, oy + h - pad - 6, label_w, 10), GTextOverflowModeFill, GTextAlignmentLeft, NULL);
 
   // Faint grid lines at high/mid/low
-  graphics_context_set_stroke_color(ctx, grid_col);
+  graphics_context_set_stroke_color(ctx, dark_mode ? GColorDarkGray : GColorCeleste);
   graphics_context_set_stroke_width(ctx, 1);
   graphics_draw_line(ctx, GPoint(graph_x, oy+pad),  GPoint(ox+w, oy+pad));
   graphics_draw_line(ctx, GPoint(graph_x, oy+h/2),  GPoint(ox+w, oy+h/2));

@@ -20,7 +20,8 @@
     "messageKeys": [
       "SHOW_SECONDS",
       "USE_24H",
-      "DARK_MODE"
+      "DARK_MODE",
+      "DATE_FMT"
     ],
     "dependencies": {
       "pebble-clay": "*"

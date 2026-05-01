@@ -41,15 +41,22 @@ static void apply_color_scheme(void) {
 #define KEY_SHOW_SECONDS 0
 #define KEY_USE_24H      1
 #define KEY_DARK_MODE    2
+#define KEY_DATE_FMT     3
+
+#define DATE_FMT_MMDD  0
+#define DATE_FMT_DDMM  1
 
 // ── State ────────────────────────────────────────────────────────────────────
 static Window  *s_window;
+static Layer   *s_window_layer;
 static Layer   *s_top_bar_layer;
 static Layer   *s_day_date_layer;
 static Layer   *s_tide_moon_layer;
 static Layer   *s_time_layer;
 static Layer   *s_bottom_bar_layer;
 static Layer   *s_chamfer_layer;
+
+static bool     s_obstructed = false;
 
 static GFont    s_font_dseg7_46;
 static GFont    s_font_dseg7_32;
@@ -62,11 +69,81 @@ static TideData  s_tide;
 static MoonPhase s_moon;
 static bool      s_show_seconds = false;
 static bool      s_use_24h      = false;
+static uint8_t   s_date_fmt     = DATE_FMT_MMDD;
 
 static const char *DAY_NAMES[] = {"SUN","MON","TUE","WED","THU","FRI","SAT"};
 
+// ── Unobstructed Area Handlers ─────────────────────────────────────────────────
+static void unobstructed_will_change(GRect final_unobstructed, void *ctx) {
+  GRect full_bounds = layer_get_bounds(s_window_layer);
+  if (!grect_equal(&full_bounds, &final_unobstructed)) {
+    layer_set_hidden(s_tide_moon_layer, true);
+  } else if (s_obstructed) {
+    layer_set_hidden(s_tide_moon_layer, false);
+  }
+}
+
+static void unobstructed_change(AnimationProgress progress, void *ctx) {
+  GRect bounds = layer_get_unobstructed_bounds(s_window_layer);
+  GRect full = layer_get_bounds(s_window_layer);
+
+  uint16_t percent = (progress * 100) / 65535;
+
+  GRect time_frame = layer_get_frame(s_time_layer);
+  GRect bb_frame = layer_get_frame(s_bottom_bar_layer);
+
+  GRect normal_time = GRect(0, TOP_BAR_H + DAY_DATE_H + TIDE_MOON_H, SCREEN_W, TIME_H);
+  GRect obstructed_time = GRect(0, TOP_BAR_H + DAY_DATE_H, SCREEN_W, bounds.size.h - TOP_BAR_H - DAY_DATE_H - BOTTOM_BAR_H);
+  if (obstructed_time.size.h < 32) obstructed_time.size.h = 32;
+
+  GRect normal_bb = GRect(0, SCREEN_H - BOTTOM_BAR_H, SCREEN_W, BOTTOM_BAR_H);
+  GRect obstructed_bb = GRect(0, bounds.size.h - BOTTOM_BAR_H, SCREEN_W, BOTTOM_BAR_H);
+
+  if (grect_equal(&bounds, &full)) {
+    time_frame = normal_time;
+    bb_frame = normal_bb;
+  } else {
+    int16_t time_y = normal_time.origin.y - (int16_t)((normal_time.origin.y - obstructed_time.origin.y) * percent / 100);
+    int16_t time_h = normal_time.size.h - (int16_t)((normal_time.size.h - obstructed_time.size.h) * percent / 100);
+    int16_t bb_y = normal_bb.origin.y - (int16_t)((normal_bb.origin.y - obstructed_bb.origin.y) * percent / 100);
+
+    time_frame.origin.y = time_y;
+    time_frame.size.h = time_h;
+    bb_frame.origin.y = bb_y;
+  }
+  layer_set_frame(s_time_layer, time_frame);
+  layer_set_frame(s_bottom_bar_layer, bb_frame);
+}
+
+static void unobstructed_did_change(void *ctx) {
+  GRect full_bounds = layer_get_bounds(s_window_layer);
+  GRect bounds = layer_get_unobstructed_bounds(s_window_layer);
+  s_obstructed = !grect_equal(&full_bounds, &bounds);
+  layer_set_hidden(s_tide_moon_layer, s_obstructed);
+
+  GRect time_frame = layer_get_frame(s_time_layer);
+  GRect bb_frame = layer_get_frame(s_bottom_bar_layer);
+  if (!s_obstructed) {
+    time_frame.origin.y = TOP_BAR_H + DAY_DATE_H + TIDE_MOON_H;
+    time_frame.size.h = TIME_H;
+    bb_frame.origin.y = SCREEN_H - BOTTOM_BAR_H;
+    bb_frame.size.h = BOTTOM_BAR_H;
+  } else {
+    time_frame.origin.y = TOP_BAR_H + DAY_DATE_H;
+    time_frame.size.h = bounds.size.h - TOP_BAR_H - DAY_DATE_H - BOTTOM_BAR_H;
+    if (time_frame.size.h < 32) time_frame.size.h = 32;
+    bb_frame.origin.y = bounds.size.h - BOTTOM_BAR_H;
+    bb_frame.size.h = BOTTOM_BAR_H;
+  }
+  layer_set_frame(s_time_layer, time_frame);
+  layer_set_frame(s_bottom_bar_layer, bb_frame);
+}
+
 // ── Forward declarations ──────────────────────────────────────────────────────
 static void update_tick_subscription(void);
+static void unobstructed_will_change(GRect final_unobstructed, void *ctx);
+static void unobstructed_change(AnimationProgress progress, void *ctx);
+static void unobstructed_did_change(void *ctx);
 
 // ── Tick handler ─────────────────────────────────────────────────────────────
 static void tick_handler(struct tm *tick_time, TimeUnits changed) {
@@ -113,18 +190,23 @@ static void day_date_update(Layer *layer, GContext *ctx) {
   int content_h = b.size.h - 4;  // 32px
   int ty = (content_h - 24) / 2; // 4
 
+  int margin = 10;
   graphics_context_set_text_color(ctx, g_ghost);
   graphics_draw_text(ctx, "888", s_font_dseg14_24,
-    GRect(10, ty, 96, content_h - ty), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+    GRect(margin, ty, 96, content_h - ty), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
   graphics_draw_text(ctx, "8-88", s_font_dseg14_24,
     GRect(0, ty, b.size.w - 10, content_h - ty), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
 
   graphics_context_set_text_color(ctx, g_digit);
   graphics_draw_text(ctx, DAY_NAMES[s_now.tm_wday], s_font_dseg14_24,
-    GRect(10, ty, 96, content_h - ty), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+    GRect(margin, ty, 96, content_h - ty), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
 
-  char date_buf[8];
-  snprintf(date_buf, sizeof(date_buf), "%d-%02d", s_now.tm_mon+1, s_now.tm_mday);
+  char date_buf[16];
+  if (s_date_fmt == DATE_FMT_DDMM) {
+    snprintf(date_buf, sizeof(date_buf), "%02d-%02d", s_now.tm_mday, s_now.tm_mon+1);
+  } else {
+    snprintf(date_buf, sizeof(date_buf), "%02d-%02d", s_now.tm_mon+1, s_now.tm_mday);
+  }
   graphics_draw_text(ctx, date_buf, s_font_dseg14_24,
     GRect(0, ty, b.size.w - 10, content_h - ty), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
 }
@@ -168,75 +250,81 @@ static void time_update(Layer *layer, GContext *ctx) {
   if (s_show_seconds) {
     char sec_buf[3];
     snprintf(sec_buf, sizeof(sec_buf), "%02d", s_now.tm_sec);
-    
+
     int ap_w = s_use_24h ? 0 : 22;
-    int digit_w = b.size.w - ap_w;
+    int margin = 10;
+    int digit_w = b.size.w - ap_w - margin;
     int ty = (b.size.h - 32) / 2;
     if (ty < 4) ty = 4;
 
     graphics_context_set_text_color(ctx, g_ghost);
     graphics_draw_text(ctx, "88:88:88", s_font_dseg7_32,
-      GRect(0, ty, digit_w, 32),
+      GRect(margin, ty, digit_w, 32),
       GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
 
     char time_sec_buf[11];
     snprintf(time_sec_buf, sizeof(time_sec_buf), "%s:%s", time_buf, sec_buf);
     graphics_context_set_text_color(ctx, g_digit);
     graphics_draw_text(ctx, time_sec_buf, s_font_dseg7_32,
-      GRect(0, ty, digit_w, 32),
+      GRect(margin, ty, digit_w, 32),
       GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
 
     if (!s_use_24h) {
       bool is_pm  = s_now.tm_hour >= 12;
       int ap_x    = b.size.w - ap_w;
-      int ap_top  = ty - 6;
+      int ap_top  = ty;
+      int ap_h    = 18;
+      int ap_spacing = 6;
 
       graphics_context_set_text_color(ctx, g_ghost);
       graphics_draw_text(ctx, "A", s_font_dseg7_18,
-        GRect(ap_x, ap_top, ap_w, 22),
+        GRect(ap_x, ap_top, ap_w, ap_h),
         GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
       graphics_draw_text(ctx, "P", s_font_dseg7_18,
-        GRect(ap_x, ap_top + 24, ap_w, 22),
+        GRect(ap_x, ap_top + ap_h + ap_spacing, ap_w, ap_h),
         GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 
       graphics_context_set_text_color(ctx, g_digit);
       graphics_draw_text(ctx, is_pm ? "P" : "A", s_font_dseg7_18,
-        GRect(ap_x, is_pm ? ap_top + 24 : ap_top, ap_w, 22),
+        GRect(ap_x, is_pm ? ap_top + ap_h + ap_spacing : ap_top, ap_w, ap_h),
         GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
     }
   } else {
-    int ap_w    = s_use_24h ? 0 : 18;
-    int digit_w = b.size.w - ap_w;
+    int margin  = 10;
+    int ap_w    = s_use_24h ? 0 : 22;
+    int digit_w = b.size.w - ap_w - margin;
 
     int ty = (b.size.h - 48) / 2;
     if (ty < 4) ty = 4;
 
     graphics_context_set_text_color(ctx, g_ghost);
     graphics_draw_text(ctx, "88:88", s_font_dseg7_46,
-      GRect(0, ty, digit_w, 48),
+      GRect(margin, ty, digit_w, 48),
       GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
 
     graphics_context_set_text_color(ctx, g_digit);
     graphics_draw_text(ctx, time_buf, s_font_dseg7_46,
-      GRect(0, ty, digit_w, 48),
+      GRect(margin, ty, digit_w, 48),
       GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
 
     if (!s_use_24h) {
       bool is_pm  = s_now.tm_hour >= 12;
       int ap_x    = b.size.w - ap_w;
-      int ap_top  = ty + 1;
+      int ap_top  = ty;
+      int ap_h    = 18;
+      int ap_spacing = 6;
 
       graphics_context_set_text_color(ctx, g_ghost);
-      graphics_draw_text(ctx, "A", s_font_dseg7_18,
-        GRect(ap_x, ap_top, ap_w, 22),
+      graphics_draw_text(ctx, "A", s_font_dseg14_24,
+        GRect(ap_x, ap_top, ap_w, ap_h),
         GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
-      graphics_draw_text(ctx, "P", s_font_dseg7_18,
-        GRect(ap_x, ap_top + 24, ap_w, 22),
+      graphics_draw_text(ctx, "P", s_font_dseg14_24,
+        GRect(ap_x, ap_top + ap_h + ap_spacing, ap_w, ap_h),
         GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 
       graphics_context_set_text_color(ctx, g_digit);
-      graphics_draw_text(ctx, is_pm ? "P" : "A", s_font_dseg7_18,
-        GRect(ap_x, is_pm ? ap_top + 24 : ap_top, ap_w, 22),
+      graphics_draw_text(ctx, is_pm ? "P" : "A", s_font_dseg14_24,
+        GRect(ap_x, is_pm ? ap_top + ap_h + ap_spacing : ap_top, ap_w, ap_h),
         GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
     }
   }
@@ -252,11 +340,13 @@ static void bottom_bar_update(Layer *layer, GContext *ctx) {
 
   graphics_context_set_text_color(ctx, g_label);
   int illum_y = (b.size.h - 11) / 2;
+  int mode_y = (b.size.h - 9) / 2;
   graphics_draw_text(ctx, "Illuminator", s_font_illum_11,
     GRect(0, illum_y, b.size.w, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
-  int mode_y = (b.size.h - 9) / 2;
+  graphics_draw_text(ctx, "< Start", sm,
+    GRect(14, mode_y, 80, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
   graphics_draw_text(ctx, "Mode >", sm,
-    GRect(0, mode_y, b.size.w - 16, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
+    GRect(0, mode_y, b.size.w - 6, b.size.h), GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
 }
 static void chamfer_update(Layer *layer, GContext *ctx) {
   APP_LOG(APP_LOG_LEVEL_DEBUG, "chamfer_update");
@@ -295,6 +385,7 @@ static void window_load(Window *window) {
   apply_color_scheme();
 
   Layer *root = window_get_root_layer(window);
+  s_window_layer = root;
   APP_LOG(APP_LOG_LEVEL_DEBUG, "got root layer");
   int y = 0;
 
@@ -317,6 +408,14 @@ static void window_load(Window *window) {
   layer_set_update_proc(s_chamfer_layer, chamfer_update);
   layer_add_child(root, s_chamfer_layer);
   APP_LOG(APP_LOG_LEVEL_DEBUG, "chamfer layer done");
+
+  UnobstructedAreaHandlers handlers = {
+    .will_change = unobstructed_will_change,
+    .change      = unobstructed_change,
+    .did_change = unobstructed_did_change
+  };
+  unobstructed_area_service_subscribe(handlers, NULL);
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "unobstructed area subscribed");
 
   time_t now = time(NULL);
   s_tide = tide_calculate(now);
@@ -374,6 +473,14 @@ static void inbox_received(DictionaryIterator *iter, void *ctx) {
     dirty_all = true;
   }
 
+  t = dict_find(iter, MESSAGE_KEY_DATE_FMT);
+  if (t) {
+    s_date_fmt = (uint8_t)t->value->int32;
+    if (s_date_fmt > DATE_FMT_DDMM) s_date_fmt = DATE_FMT_MMDD;
+    persist_write_int(KEY_DATE_FMT, s_date_fmt);
+    dirty_all = true;
+  }
+
   if (dirty_all) {
     layer_mark_dirty(s_top_bar_layer);
     layer_mark_dirty(s_day_date_layer);
@@ -393,6 +500,9 @@ static void init(void) {
     ? persist_read_bool(KEY_USE_24H) : false;
   s_dark_mode = persist_exists(KEY_DARK_MODE)
     ? persist_read_bool(KEY_DARK_MODE) : false;
+  s_date_fmt = persist_exists(KEY_DATE_FMT)
+    ? persist_read_int(KEY_DATE_FMT) : DATE_FMT_MMDD;
+  if (s_date_fmt > DATE_FMT_DDMM) s_date_fmt = DATE_FMT_MMDD;
 
   time_t now = time(NULL);
   struct tm *t = localtime(&now); if (t) s_now = *t;

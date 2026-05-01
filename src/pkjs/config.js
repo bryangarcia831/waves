@@ -21,5 +21,16 @@ module.exports = [
     "description": "Invert LCD colors — black background, white digits.",
     "defaultValue": false
   },
+  {
+    "type": "select",
+    "messageKey": "DATE_FMT",
+    "label": "Date Format",
+    "description": "Choose the date display format.",
+    "defaultValue": 0,
+    "options": [
+      { "label": "Month-Day (MM-DD)", "value": 0 },
+      { "label": "Day-Month (DD-MM)", "value": 1 }
+    ]
+  },
   { "type": "submit", "defaultValue": "Save" }
 ];
