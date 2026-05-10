@@ -40,7 +40,7 @@ module.exports = [
       { "label": "Rio de Janeiro", "value": 5 },
       { "label": "London, UK", "value": 6 },
       { "label": "Singapore", "value": 7 },
-      { "label": "Jeju, Korea", "value": 8 },
+      { "label": "Jeju, South Korea", "value": 8 },
       { "label": "Sydney, AU", "value": 9 }
     ]
   },
