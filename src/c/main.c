@@ -1,4 +1,5 @@
 #include <pebble.h>
+#include <stdlib.h>
 #include "moon.h"
 #include "tide.h"
 
@@ -473,7 +474,8 @@ static void inbox_received(DictionaryIterator *iter, void *ctx) {
 
   t = dict_find(iter, MESSAGE_KEY_DATE_FMT);
   if (t) {
-    s_date_fmt = (uint8_t)t->value->int32;
+    s_date_fmt = (uint8_t)((t->type == TUPLE_CSTRING)
+      ? atoi(t->value->cstring) : t->value->int32);
     if (s_date_fmt > DATE_FMT_DDMM) s_date_fmt = DATE_FMT_MMDD;
     persist_write_int(KEY_DATE_FMT, s_date_fmt);
     dirty_all = true;
@@ -481,7 +483,8 @@ static void inbox_received(DictionaryIterator *iter, void *ctx) {
 
   t = dict_find(iter, MESSAGE_KEY_TIDE_STATION);
   if (t) {
-    s_tide_station = t->value->int32;
+    s_tide_station = (t->type == TUPLE_CSTRING)
+      ? atoi(t->value->cstring) : t->value->int32;
     if (s_tide_station < 0 || s_tide_station >= TIDE_STATION_COUNT) s_tide_station = 0;
     persist_write_int(KEY_TIDE_STATION, s_tide_station);
     time_t now = time(NULL);
@@ -519,7 +522,7 @@ static void init(void) {
   struct tm *t = localtime(&now); if (t) s_now = *t;
 
   app_message_register_inbox_received(inbox_received);
-  app_message_open(64, 64);
+  app_message_open(256, 64);
 
   s_window = window_create();
   window_set_background_color(s_window, GColorBlack);
