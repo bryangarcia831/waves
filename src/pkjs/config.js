@@ -36,12 +36,12 @@ module.exports = [
       { "label": "San Diego, CA", "value": 1 },
       { "label": "Miami, FL", "value": 2 },
       { "label": "New York, NY", "value": 3 },
-      { "label": "Rio de Janeiro", "value": 4 },
-      { "label": "London, UK", "value": 5 },
-      { "label": "Singapore", "value": 6 },
-      { "label": "Jeju, Korea", "value": 7 },
-      { "label": "Sydney, AU", "value": 8 },
-      { "label": "Honolulu, HI", "value": 9 }
+      { "label": "Honolulu, HI", "value": 4 },
+      { "label": "Rio de Janeiro", "value": 5 },
+      { "label": "London, UK", "value": 6 },
+      { "label": "Singapore", "value": 7 },
+      { "label": "Jeju, Korea", "value": 8 },
+      { "label": "Sydney, AU", "value": 9 }
     ]
   },
   { "type": "submit", "defaultValue": "Save" }
