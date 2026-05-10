@@ -354,16 +354,12 @@ static void chamfer_update(Layer *layer, GContext *ctx) {
   int W = b.size.w, H = b.size.h, C = CHAMFER_SIZE;
   graphics_context_set_fill_color(ctx, GColorBlack);
 
-  GPoint tl[3] = {GPoint(0,0),   GPoint(C,0),   GPoint(0,C)};
-  GPoint tr[3] = {GPoint(W-C,0), GPoint(W,0),   GPoint(W,C)};
   GPoint bl[3] = {GPoint(0,H-C), GPoint(C,H),   GPoint(0,H)};
   GPoint br[3] = {GPoint(W,H-C), GPoint(W-C,H), GPoint(W,H)};
 
   GPathInfo pi;
   GPath *p;
 
-  pi = (GPathInfo){3, tl}; p = gpath_create(&pi); gpath_draw_filled(ctx, p); gpath_destroy(p);
-  pi = (GPathInfo){3, tr}; p = gpath_create(&pi); gpath_draw_filled(ctx, p); gpath_destroy(p);
   pi = (GPathInfo){3, bl}; p = gpath_create(&pi); gpath_draw_filled(ctx, p); gpath_destroy(p);
   pi = (GPathInfo){3, br}; p = gpath_create(&pi); gpath_draw_filled(ctx, p); gpath_destroy(p);
 }
