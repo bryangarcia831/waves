@@ -38,10 +38,11 @@ static void apply_color_scheme(void) {
 }
 
 // ── Persist keys ─────────────────────────────────────────────────────────────
-#define KEY_SHOW_SECONDS 0
-#define KEY_USE_24H      1
-#define KEY_DARK_MODE    2
-#define KEY_DATE_FMT     3
+#define KEY_SHOW_SECONDS  0
+#define KEY_USE_24H       1
+#define KEY_DARK_MODE     2
+#define KEY_DATE_FMT      3
+#define KEY_TIDE_STATION  4
 
 #define DATE_FMT_MMDD  0
 #define DATE_FMT_DDMM  1
@@ -67,9 +68,10 @@ static GFont    s_font_illum_11;
 static struct tm s_now;
 static TideData  s_tide;
 static MoonPhase s_moon;
-static bool      s_show_seconds = false;
-static bool      s_use_24h      = false;
-static uint8_t   s_date_fmt     = DATE_FMT_MMDD;
+static bool      s_show_seconds  = false;
+static bool      s_use_24h       = false;
+static uint8_t   s_date_fmt      = DATE_FMT_MMDD;
+static int       s_tide_station  = 0;
 
 static const char *DAY_NAMES[] = {"SUN","MON","TUE","WED","THU","FRI","SAT"};
 
@@ -153,7 +155,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits changed) {
   if (changed & DAY_UNIT)   layer_mark_dirty(s_day_date_layer);
   if (tick_time->tm_min % 15 == 0) {
     time_t now = time(NULL);
-    s_tide = tide_calculate(now);
+    s_tide = tide_calculate(now, s_tide_station);
     s_moon = moon_calculate_phase(now);
     layer_mark_dirty(s_tide_moon_layer);
   }
@@ -414,7 +416,7 @@ static void window_load(Window *window) {
   APP_LOG(APP_LOG_LEVEL_DEBUG, "unobstructed area subscribed");
 
   time_t now = time(NULL);
-  s_tide = tide_calculate(now);
+  s_tide = tide_calculate(now, s_tide_station);
   APP_LOG(APP_LOG_LEVEL_DEBUG, "tide calculated");
   APP_LOG(APP_LOG_LEVEL_DEBUG, "about to call moon_calculate_phase");
   s_moon = moon_calculate_phase(now);
@@ -477,6 +479,16 @@ static void inbox_received(DictionaryIterator *iter, void *ctx) {
     dirty_all = true;
   }
 
+  t = dict_find(iter, MESSAGE_KEY_TIDE_STATION);
+  if (t) {
+    s_tide_station = t->value->int32;
+    if (s_tide_station < 0 || s_tide_station >= TIDE_STATION_COUNT) s_tide_station = 0;
+    persist_write_int(KEY_TIDE_STATION, s_tide_station);
+    time_t now = time(NULL);
+    s_tide = tide_calculate(now, s_tide_station);
+    dirty_all = true;
+  }
+
   if (dirty_all) {
     layer_mark_dirty(s_top_bar_layer);
     layer_mark_dirty(s_day_date_layer);
@@ -499,6 +511,9 @@ static void init(void) {
   s_date_fmt = persist_exists(KEY_DATE_FMT)
     ? persist_read_int(KEY_DATE_FMT) : DATE_FMT_MMDD;
   if (s_date_fmt > DATE_FMT_DDMM) s_date_fmt = DATE_FMT_MMDD;
+  s_tide_station = persist_exists(KEY_TIDE_STATION)
+    ? persist_read_int(KEY_TIDE_STATION) : 0;
+  if (s_tide_station < 0 || s_tide_station >= TIDE_STATION_COUNT) s_tide_station = 0;
 
   time_t now = time(NULL);
   struct tm *t = localtime(&now); if (t) s_now = *t;

@@ -21,7 +21,8 @@
       "SHOW_SECONDS",
       "USE_24H",
       "DARK_MODE",
-      "DATE_FMT"
+      "DATE_FMT",
+      "TIDE_STATION"
     ],
     "dependencies": {
       "pebble-clay": "*"

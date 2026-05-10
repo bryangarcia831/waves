@@ -32,5 +32,24 @@ module.exports = [
       { "label": "Day-Month (DD-MM)", "value": 1 }
     ]
   },
+  {
+    "type": "select",
+    "messageKey": "TIDE_STATION",
+    "label": "Tide Location",
+    "description": "Select the tide station for harmonic prediction.",
+    "defaultValue": 0,
+    "options": [
+      { "label": "Monterey, CA", "value": 0 },
+      { "label": "San Diego, CA", "value": 1 },
+      { "label": "Miami, FL", "value": 2 },
+      { "label": "New York, NY", "value": 3 },
+      { "label": "Rio de Janeiro", "value": 4 },
+      { "label": "London, UK", "value": 5 },
+      { "label": "Singapore", "value": 6 },
+      { "label": "Jeju, Korea", "value": 7 },
+      { "label": "Sydney, AU", "value": 8 },
+      { "label": "Honolulu, HI", "value": 9 }
+    ]
+  },
   { "type": "submit", "defaultValue": "Save" }
 ];
