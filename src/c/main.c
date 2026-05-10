@@ -39,11 +39,10 @@ static void apply_color_scheme(void) {
 }
 
 // ── Persist keys ─────────────────────────────────────────────────────────────
-#define KEY_SHOW_SECONDS  0
-#define KEY_USE_24H       1
-#define KEY_DARK_MODE     2
-#define KEY_DATE_FMT      3
-#define KEY_TIDE_STATION  4
+#define KEY_USE_24H       0
+#define KEY_DARK_MODE     1
+#define KEY_DATE_FMT      2
+#define KEY_TIDE_STATION  3
 
 #define DATE_FMT_MMDD  0
 #define DATE_FMT_DDMM  1
@@ -61,15 +60,12 @@ static Layer   *s_chamfer_layer;
 static bool     s_obstructed = false;
 
 static GFont    s_font_dseg7_46;
-static GFont    s_font_dseg7_32;
-static GFont    s_font_dseg7_18;
 static GFont    s_font_dseg14_24;
 static GFont    s_font_illum_11;
 
 static struct tm s_now;
 static TideData  s_tide;
 static MoonPhase s_moon;
-static bool      s_show_seconds  = false;
 static bool      s_use_24h       = false;
 static uint8_t   s_date_fmt      = DATE_FMT_MMDD;
 static int       s_tide_station  = 0;
@@ -143,7 +139,6 @@ static void unobstructed_did_change(void *ctx) {
 }
 
 // ── Forward declarations ──────────────────────────────────────────────────────
-static void update_tick_subscription(void);
 static void unobstructed_will_change(GRect final_unobstructed, void *ctx);
 static void unobstructed_change(AnimationProgress progress, void *ctx);
 static void unobstructed_did_change(void *ctx);
@@ -250,49 +245,7 @@ static void time_update(Layer *layer, GContext *ctx) {
     snprintf(time_buf, sizeof(time_buf), "%02d:%02d", hour12, s_now.tm_min);
   }
 
-  if (s_show_seconds) {
-    char sec_buf[3];
-    snprintf(sec_buf, sizeof(sec_buf), "%02d", s_now.tm_sec);
-
-    int ap_w = s_use_24h ? 0 : 22;
-    int margin = 10;
-    int digit_w = b.size.w - ap_w - margin;
-    int ty = (b.size.h - 32) / 2;
-    if (ty < 4) ty = 4;
-
-    graphics_context_set_text_color(ctx, g_ghost);
-    graphics_draw_text(ctx, "88:88:88", s_font_dseg7_32,
-      GRect(margin, ty, digit_w, 32),
-      GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
-
-    char time_sec_buf[11];
-    snprintf(time_sec_buf, sizeof(time_sec_buf), "%s:%s", time_buf, sec_buf);
-    graphics_context_set_text_color(ctx, g_digit);
-    graphics_draw_text(ctx, time_sec_buf, s_font_dseg7_32,
-      GRect(margin, ty, digit_w, 32),
-      GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
-
-    if (!s_use_24h) {
-      bool is_pm  = s_now.tm_hour >= 12;
-      int ap_x    = b.size.w - ap_w;
-      int ap_top  = ty;
-      int ap_h    = 18;
-      int ap_spacing = 6;
-
-      graphics_context_set_text_color(ctx, g_ghost);
-      graphics_draw_text(ctx, "A", s_font_dseg7_18,
-        GRect(ap_x, ap_top, ap_w, ap_h),
-        GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
-      graphics_draw_text(ctx, "P", s_font_dseg7_18,
-        GRect(ap_x, ap_top + ap_h + ap_spacing, ap_w, ap_h),
-        GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
-
-      graphics_context_set_text_color(ctx, g_digit);
-      graphics_draw_text(ctx, is_pm ? "P" : "A", s_font_dseg7_18,
-        GRect(ap_x, is_pm ? ap_top + ap_h + ap_spacing : ap_top, ap_w, ap_h),
-        GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
-    }
-  } else {
+  {
     int margin  = 10;
     int ap_w    = s_use_24h ? 0 : 22;
     int digit_w = b.size.w - ap_w - margin;
@@ -372,10 +325,6 @@ static void window_load(Window *window) {
   APP_LOG(APP_LOG_LEVEL_DEBUG, "window_load start");
   s_font_dseg7_46  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TIME_48));
   APP_LOG(APP_LOG_LEVEL_DEBUG, "font 46 loaded: %p", s_font_dseg7_46);
-  s_font_dseg7_32  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TIME_32));
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "font 32 loaded: %p", s_font_dseg7_32);
-  s_font_dseg7_18  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SEC_18));
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "font 18 loaded: %p", s_font_dseg7_18);
   s_font_dseg14_24 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DATE_24));
   APP_LOG(APP_LOG_LEVEL_DEBUG, "font 24 loaded: %p", s_font_dseg14_24);
   s_font_illum_11  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_ILLUM_11));
@@ -423,7 +372,7 @@ static void window_load(Window *window) {
   s_moon = moon_calculate_phase(now);
   APP_LOG(APP_LOG_LEVEL_DEBUG, "moon calculated, phase_day=%d", s_moon.phase_day);
 
-  update_tick_subscription();
+  tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
   APP_LOG(APP_LOG_LEVEL_DEBUG, "tick subscribed, load done");
 }
 
@@ -435,29 +384,14 @@ static void window_unload(Window *window) {
   layer_destroy(s_bottom_bar_layer);
   layer_destroy(s_chamfer_layer);
   fonts_unload_custom_font(s_font_dseg7_46);
-  fonts_unload_custom_font(s_font_dseg7_32);
-  fonts_unload_custom_font(s_font_dseg7_18);
   fonts_unload_custom_font(s_font_dseg14_24);
   fonts_unload_custom_font(s_font_illum_11);
-}
-
-static void update_tick_subscription(void) {
-  TimeUnits unit = s_show_seconds ? SECOND_UNIT : MINUTE_UNIT;
-  tick_timer_service_subscribe(unit, tick_handler);
 }
 
 static void inbox_received(DictionaryIterator *iter, void *ctx) {
   bool dirty_time = false, dirty_all = false;
 
-  Tuple *t = dict_find(iter, MESSAGE_KEY_SHOW_SECONDS);
-  if (t) {
-    s_show_seconds = t->value->int32 != 0;
-    persist_write_bool(KEY_SHOW_SECONDS, s_show_seconds);
-    update_tick_subscription();
-    dirty_time = true;
-  }
-
-  t = dict_find(iter, MESSAGE_KEY_USE_24H);
+  Tuple *t = dict_find(iter, MESSAGE_KEY_USE_24H);
   if (t) {
     s_use_24h = t->value->int32 != 0;
     persist_write_bool(KEY_USE_24H, s_use_24h);
@@ -505,8 +439,6 @@ static void inbox_received(DictionaryIterator *iter, void *ctx) {
 
 static void init(void) {
   APP_LOG(APP_LOG_LEVEL_DEBUG, "init start");
-  s_show_seconds = persist_exists(KEY_SHOW_SECONDS)
-    ? persist_read_bool(KEY_SHOW_SECONDS) : false;
   s_use_24h = persist_exists(KEY_USE_24H)
     ? persist_read_bool(KEY_USE_24H) : false;
   s_dark_mode = persist_exists(KEY_DARK_MODE)

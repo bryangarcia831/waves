@@ -1,13 +1,13 @@
 {
-  "name": "casio-waves",
-  "author": "casio-waves",
+  "name": "waves",
+  "author": "waves",
   "version": "1.0.0",
   "keywords": [
     "pebble-app"
   ],
   "pebble": {
     "sdkVersion": "3",
-    "displayName": "Casio Waves",
+    "displayName": "Waves",
     "uuid": "6DE6CF3A-57CD-47BD-B40D-229E8A481D99",
     "targetPlatforms": [
       "emery"
@@ -18,7 +18,6 @@
     "enableMultiJS": true,
     "capabilities": [],
     "messageKeys": [
-      "SHOW_SECONDS",
       "USE_24H",
       "DARK_MODE",
       "DATE_FMT",
@@ -32,20 +31,6 @@
         {
           "type": "font",
           "name": "FONT_TIME_48",
-          "file": "fonts/DSEG7Classic-Regular.ttf",
-          "characterRegex": "[0-9:AMP ]",
-          "compatibility": "2.7"
-        },
-        {
-          "type": "font",
-          "name": "FONT_TIME_32",
-          "file": "fonts/DSEG7Classic-Regular.ttf",
-          "characterRegex": "[0-9:AMP ]",
-          "compatibility": "2.7"
-        },
-        {
-          "type": "font",
-          "name": "FONT_SEC_18",
           "file": "fonts/DSEG7Classic-Regular.ttf",
           "characterRegex": "[0-9:AMP ]",
           "compatibility": "2.7"
