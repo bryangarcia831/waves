@@ -86,30 +86,18 @@ static void unobstructed_change(AnimationProgress progress, void *ctx) {
   GRect bounds = layer_get_unobstructed_bounds(s_window_layer);
   GRect full = layer_get_bounds(s_window_layer);
 
-  uint16_t percent = (progress * 100) / 65535;
-
-  GRect time_frame = layer_get_frame(s_time_layer);
-  GRect bb_frame = layer_get_frame(s_bottom_bar_layer);
-
-  GRect normal_time = GRect(0, TOP_BAR_H + DAY_DATE_H + TIDE_MOON_H, SCREEN_W, TIME_H);
-  GRect obstructed_time = GRect(0, TOP_BAR_H + DAY_DATE_H, SCREEN_W, bounds.size.h - TOP_BAR_H - DAY_DATE_H - BOTTOM_BAR_H);
-  if (obstructed_time.size.h < 32) obstructed_time.size.h = 32;
-
-  GRect normal_bb = GRect(0, SCREEN_H - BOTTOM_BAR_H, SCREEN_W, BOTTOM_BAR_H);
-  GRect obstructed_bb = GRect(0, bounds.size.h - BOTTOM_BAR_H, SCREEN_W, BOTTOM_BAR_H);
+  GRect time_frame, bb_frame;
 
   if (grect_equal(&bounds, &full)) {
-    time_frame = normal_time;
-    bb_frame = normal_bb;
+    time_frame = GRect(0, TOP_BAR_H + DAY_DATE_H + TIDE_MOON_H, SCREEN_W, TIME_H);
+    bb_frame   = GRect(0, SCREEN_H - BOTTOM_BAR_H, SCREEN_W, BOTTOM_BAR_H);
   } else {
-    int16_t time_y = normal_time.origin.y - (int16_t)((normal_time.origin.y - obstructed_time.origin.y) * percent / 100);
-    int16_t time_h = normal_time.size.h - (int16_t)((normal_time.size.h - obstructed_time.size.h) * percent / 100);
-    int16_t bb_y = normal_bb.origin.y - (int16_t)((normal_bb.origin.y - obstructed_bb.origin.y) * percent / 100);
-
-    time_frame.origin.y = time_y;
-    time_frame.size.h = time_h;
-    bb_frame.origin.y = bb_y;
+    int16_t time_h = bounds.size.h - TOP_BAR_H - DAY_DATE_H - BOTTOM_BAR_H;
+    if (time_h < 32) time_h = 32;
+    time_frame = GRect(0, TOP_BAR_H + DAY_DATE_H, SCREEN_W, time_h);
+    bb_frame   = GRect(0, bounds.size.h - BOTTOM_BAR_H, SCREEN_W, BOTTOM_BAR_H);
   }
+
   layer_set_frame(s_time_layer, time_frame);
   layer_set_frame(s_bottom_bar_layer, bb_frame);
 }
@@ -137,11 +125,6 @@ static void unobstructed_did_change(void *ctx) {
   layer_set_frame(s_time_layer, time_frame);
   layer_set_frame(s_bottom_bar_layer, bb_frame);
 }
-
-// ── Forward declarations ──────────────────────────────────────────────────────
-static void unobstructed_will_change(GRect final_unobstructed, void *ctx);
-static void unobstructed_change(AnimationProgress progress, void *ctx);
-static void unobstructed_did_change(void *ctx);
 
 // ── Tick handler ─────────────────────────────────────────────────────────────
 static void tick_handler(struct tm *tick_time, TimeUnits changed) {
@@ -362,6 +345,8 @@ static void window_load(Window *window) {
     .change      = unobstructed_change,
     .did_change = unobstructed_did_change
   };
+  unobstructed_change(0, NULL);
+  unobstructed_did_change(NULL);
   unobstructed_area_service_subscribe(handlers, NULL);
   APP_LOG(APP_LOG_LEVEL_DEBUG, "unobstructed area subscribed");
 
